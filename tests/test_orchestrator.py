@@ -68,7 +68,7 @@ class TestClewcrewOrchestrator:
         """Test that the workflow is properly created."""
         assert orchestrator.workflow is not None
         # The workflow should be a compiled LangGraph workflow
-        assert hasattr(orchestrator.workflow, 'ainvoke')
+        assert hasattr(orchestrator.workflow, "ainvoke")
 
 
 @pytest.mark.asyncio
@@ -79,22 +79,24 @@ class TestClewcrewOrchestratorAsync:
     def mock_orchestrator(self):
         """Create a mock orchestrator for testing."""
         orchestrator = ClewcrewOrchestrator("/test/project")
-        
+
         # Mock the agents to avoid actual execution
         for name in orchestrator.agents:
             orchestrator.agents[name] = Mock()
             orchestrator.agents[name].detect_hallucinations = AsyncMock(return_value=[])
-        
+
         # Mock the validators
         for name in orchestrator.validators:
             orchestrator.validators[name] = Mock()
             orchestrator.validators[name].validate_findings = AsyncMock(return_value=[])
-        
+
         # Mock the recovery engines
         for name in orchestrator.recovery_engines:
             orchestrator.recovery_engines[name] = Mock()
-            orchestrator.recovery_engines[name].execute_recovery = AsyncMock(return_value={"success": True})
-        
+            orchestrator.recovery_engines[name].execute_recovery = AsyncMock(
+                return_value={"success": True}
+            )
+
         return orchestrator
 
     async def test_detect_hallucinations(self, mock_orchestrator):
@@ -107,9 +109,9 @@ class TestClewcrewOrchestratorAsync:
         """Test recovery from issues."""
         test_issues = [
             {"type": "syntax_error", "file": "test.py", "line": 10},
-            {"type": "indentation_error", "file": "test.py", "line": 15}
+            {"type": "indentation_error", "file": "test.py", "line": 15},
         ]
-        
+
         result = await mock_orchestrator.recover_from_issues(test_issues)
         assert isinstance(result, dict)
         assert "fix_syntax_error" in result

@@ -3,9 +3,14 @@
 clewcrew Core Orchestrator - Multi-Agent Hallucination Detection & Recovery System
 """
 
+import sys
+from pathlib import Path
+
+# Add clewcrew-agents to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "clewcrew-agents" / "src"))
+
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -14,7 +19,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from langgraph.graph import END, StateGraph
 
 # Local imports
-from .agents import (
+from clewcrew_agents import (  # noqa: E402
     ArchitectureExpert,
     BuildExpert,
     CodeQualityExpert,
@@ -123,13 +128,15 @@ class ClewcrewOrchestrator:
     async def _detect_hallucinations_node(self, state: ClewcrewState) -> ClewcrewState:
         """Detect hallucinations using all expert agents"""
         self.logger.info("Starting hallucination detection...")
-        
+
         hallucinations = []
         for name, agent in self.agents.items():
             try:
                 agent_result = await agent.detect_hallucinations(self.project_path)
                 hallucinations.extend(agent_result)
-                self.logger.info(f"{name} agent detected {len(agent_result)} hallucinations")
+                self.logger.info(
+                    f"{name} agent detected {len(agent_result)} hallucinations"
+                )
             except Exception as e:
                 self.logger.error(f"Error in {name} agent: {e}")
                 state.errors.append(f"{name} agent error: {e}")
@@ -141,11 +148,13 @@ class ClewcrewOrchestrator:
     async def _validate_findings_node(self, state: ClewcrewState) -> ClewcrewState:
         """Validate findings using all validators"""
         self.logger.info("Starting validation of findings...")
-        
+
         validation_results = {}
         for name, validator in self.validators.items():
             try:
-                validator_result = await validator.validate_findings(state.hallucinations_detected)
+                validator_result = await validator.validate_findings(
+                    state.hallucinations_detected
+                )
                 validation_results[name] = validator_result
                 self.logger.info(f"{name} validator completed validation")
             except Exception as e:
@@ -159,34 +168,42 @@ class ClewcrewOrchestrator:
     async def _plan_recovery_node(self, state: ClewcrewState) -> ClewcrewState:
         """Plan recovery actions based on validated findings"""
         self.logger.info("Planning recovery actions...")
-        
+
         recovery_actions = []
         for hallucination in state.hallucinations_detected:
             # Determine appropriate recovery engine
             if hallucination.get("type") == "syntax_error":
-                recovery_actions.append({
-                    "hallucination": hallucination,
-                    "recovery_engine": "syntax",
-                    "action": "fix_syntax_error"
-                })
+                recovery_actions.append(
+                    {
+                        "hallucination": hallucination,
+                        "recovery_engine": "syntax",
+                        "action": "fix_syntax_error",
+                    }
+                )
             elif hallucination.get("type") == "indentation_error":
-                recovery_actions.append({
-                    "hallucination": hallucination,
-                    "recovery_engine": "indentation",
-                    "action": "fix_indentation"
-                })
+                recovery_actions.append(
+                    {
+                        "hallucination": hallucination,
+                        "recovery_engine": "indentation",
+                        "action": "fix_indentation",
+                    }
+                )
             elif hallucination.get("type") == "import_error":
-                recovery_actions.append({
-                    "hallucination": hallucination,
-                    "recovery_engine": "imports",
-                    "action": "resolve_imports"
-                })
+                recovery_actions.append(
+                    {
+                        "hallucination": hallucination,
+                        "recovery_engine": "imports",
+                        "action": "resolve_imports",
+                    }
+                )
             elif hallucination.get("type") == "type_error":
-                recovery_actions.append({
-                    "hallucination": hallucination,
-                    "recovery_engine": "types",
-                    "action": "fix_type_annotations"
-                })
+                recovery_actions.append(
+                    {
+                        "hallucination": hallucination,
+                        "recovery_engine": "types",
+                        "action": "fix_type_annotations",
+                    }
+                )
 
         state.recovery_actions = recovery_actions
         state.current_phase = "recovery_execution"
@@ -195,19 +212,21 @@ class ClewcrewOrchestrator:
     async def _execute_recovery_node(self, state: ClewcrewState) -> ClewcrewState:
         """Execute recovery actions using appropriate engines"""
         self.logger.info("Executing recovery actions...")
-        
+
         recovery_results = {}
         for action in state.recovery_actions:
             engine_name = action["recovery_engine"]
             engine = self.recovery_engines.get(engine_name)
-            
+
             if engine:
                 try:
                     result = await engine.execute_recovery(action)
                     recovery_results[action["action"]] = result
                     self.logger.info(f"Recovery action {action['action']} completed")
                 except Exception as e:
-                    self.logger.error(f"Error in recovery action {action['action']}: {e}")
+                    self.logger.error(
+                        f"Error in recovery action {action['action']}: {e}"
+                    )
                     state.errors.append(f"Recovery error: {e}")
             else:
                 self.logger.warning(f"No recovery engine found for {engine_name}")
@@ -219,16 +238,20 @@ class ClewcrewOrchestrator:
     async def _validate_recovery_node(self, state: ClewcrewState) -> ClewcrewState:
         """Validate that recovery actions were successful"""
         self.logger.info("Validating recovery actions...")
-        
+
         # Re-run validation to check if issues were resolved
         for name, validator in self.validators.items():
             try:
                 post_recovery_validation = await validator.validate_findings([])
                 # Compare with pre-recovery state
                 if len(post_recovery_validation) < len(state.hallucinations_detected):
-                    self.logger.info(f"Recovery successful: {name} validator shows improvement")
+                    self.logger.info(
+                        f"Recovery successful: {name} validator shows improvement"
+                    )
                 else:
-                    self.logger.warning(f"Recovery may not have been fully successful: {name}")
+                    self.logger.warning(
+                        f"Recovery may not have been fully successful: {name}"
+                    )
             except Exception as e:
                 self.logger.error(f"Error in post-recovery validation {name}: {e}")
 
@@ -238,25 +261,31 @@ class ClewcrewOrchestrator:
     async def _generate_report_node(self, state: ClewcrewState) -> ClewcrewState:
         """Generate comprehensive report of the workflow execution"""
         self.logger.info("Generating final report...")
-        
+
         # Calculate confidence score
         total_issues = len(state.hallucinations_detected)
-        resolved_issues = len([r for r in state.recovery_results.values() if r.get("success", False)])
-        
+        resolved_issues = len(
+            [r for r in state.recovery_results.values() if r.get("success", False)]
+        )
+
         if total_issues > 0:
             state.confidence_score = resolved_issues / total_issues
         else:
             state.confidence_score = 1.0
 
         # Add metadata
-        state.metadata.update({
-            "workflow_completed_at": datetime.now(timezone.utc).isoformat(),
-            "total_hallucinations": total_issues,
-            "resolved_issues": resolved_issues,
-            "success_rate": state.confidence_score
-        })
+        state.metadata.update(
+            {
+                "workflow_completed_at": datetime.now(timezone.utc).isoformat(),
+                "total_hallucinations": total_issues,
+                "resolved_issues": resolved_issues,
+                "success_rate": state.confidence_score,
+            }
+        )
 
-        self.logger.info(f"Workflow completed with confidence score: {state.confidence_score}")
+        self.logger.info(
+            f"Workflow completed with confidence score: {state.confidence_score}"
+        )
         return state
 
     async def run_workflow(self, project_path: str = None) -> ClewcrewState:
@@ -265,7 +294,7 @@ class ClewcrewOrchestrator:
             self.project_path = Path(project_path)
 
         initial_state = ClewcrewState(project_path=str(self.project_path))
-        
+
         try:
             final_state = await self.workflow.ainvoke(initial_state)
             return final_state
@@ -274,11 +303,13 @@ class ClewcrewOrchestrator:
             initial_state.errors.append(f"Workflow error: {e}")
             return initial_state
 
-    async def detect_hallucinations(self, project_path: str = None) -> List[Dict[str, Any]]:
+    async def detect_hallucinations(
+        self, project_path: str = None
+    ) -> List[Dict[str, Any]]:
         """Quick method to just detect hallucinations"""
         if project_path:
             self.project_path = Path(project_path)
-        
+
         state = ClewcrewState(project_path=str(self.project_path))
         state = await self._detect_hallucinations_node(state)
         return state.hallucinations_detected
@@ -287,9 +318,139 @@ class ClewcrewOrchestrator:
         """Recover from specific issues"""
         state = ClewcrewState(project_path=str(self.project_path))
         state.hallucinations_detected = issues
-        
+
         # Run recovery workflow
         state = await self._plan_recovery_node(state)
         state = await self._execute_recovery_node(state)
-        
+
         return state.recovery_results
+
+    async def run_quality_analysis(self, project_path: str = None) -> Dict[str, Any]:
+        """
+        Run comprehensive quality analysis using all expert agents.
+        
+        This method integrates with the quality system to provide
+        comprehensive quality metrics and recommendations.
+        
+        Args:
+            project_path: Path to the project to analyze
+            
+        Returns:
+            Dictionary containing comprehensive quality analysis results
+        """
+        if project_path:
+            self.project_path = Path(project_path)
+
+        self.logger.info("Starting comprehensive quality analysis...")
+
+        try:
+            # Collect quality metrics from all expert agents
+            agent_quality_results = {}
+            
+            for agent_name, agent in self.agents.items():
+                try:
+                    # Generate quality metrics for this agent's domain
+                    quality_metrics = await agent.generate_quality_metrics(self.project_path)
+                    agent_quality_results[agent_name] = quality_metrics
+                    
+                    self.logger.info(
+                        f"{agent_name} agent generated quality metrics: "
+                        f"score={quality_metrics.get('quality_score', 'N/A')}, "
+                        f"issues={quality_metrics.get('issues_found', 'N/A')}"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error in {agent_name} agent quality analysis: {e}")
+                    # Provide fallback metrics
+                    agent_quality_results[agent_name] = {
+                        "quality_score": 0.0,
+                        "issues_found": 0,
+                        "error": str(e)
+                    }
+
+            # Collect quality recommendations from all agents
+            all_recommendations = []
+            for agent_name, agent in self.agents.items():
+                try:
+                    recommendations = await agent.provide_quality_recommendations(self.project_path)
+                    all_recommendations.extend([
+                        {"agent": agent_name, "recommendation": rec}
+                        for rec in recommendations
+                    ])
+                except Exception as e:
+                    self.logger.warning(f"Could not get recommendations from {agent_name}: {e}")
+
+            # Generate comprehensive quality report
+            quality_report = {
+                "project_path": str(self.project_path),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "agent_quality_results": agent_quality_results,
+                "all_recommendations": all_recommendations,
+                "total_agents_analyzed": len(agent_quality_results),
+                "total_recommendations": len(all_recommendations),
+                "overall_quality_summary": self._generate_quality_summary(agent_quality_results)
+            }
+
+            self.logger.info("Quality analysis completed successfully")
+            return quality_report
+
+        except Exception as e:
+            self.logger.error(f"Quality analysis failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "project_path": str(self.project_path),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
+    def _generate_quality_summary(self, agent_quality_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate overall quality summary from agent results.
+        
+        Args:
+            agent_quality_results: Quality results from all agents
+            
+        Returns:
+            Dictionary containing overall quality summary
+        """
+        total_score = 0.0
+        total_issues = 0
+        agent_count = 0
+        
+        # Calculate simple average quality score (not weighted)
+        for agent_name, results in agent_quality_results.items():
+            # Skip agents with actual error strings, but allow None values
+            if "error" in results and results["error"] is not None:
+                continue
+                
+            quality_score = results.get("quality_score", 0.0)
+            issues_found = results.get("issues_found", 0)
+            
+            total_score += quality_score
+            total_issues += issues_found
+            agent_count += 1
+        
+        # Calculate overall metrics
+        if agent_count > 0:
+            overall_quality_score = total_score / agent_count
+        else:
+            overall_quality_score = 0.0
+        
+        # Determine quality status
+        if overall_quality_score >= 90.0:
+            quality_status = "excellent"
+        elif overall_quality_score >= 80.0:
+            quality_status = "good"
+        elif overall_quality_score >= 70.0:
+            quality_status = "acceptable"
+        elif overall_quality_score >= 60.0:
+            quality_status = "needs_improvement"
+        else:
+            quality_status = "critical"
+        
+        return {
+            "overall_quality_score": overall_quality_score,
+            "total_issues_found": total_issues,
+            "agents_analyzed": agent_count,
+            "quality_status": quality_status,
+            "recommendations_priority": "high" if overall_quality_score < 70.0 else "medium"
+        }
